@@ -32,7 +32,19 @@ import transformers
 
 from indextts.gpt.transformers_generation_utils import GenerationMixin
 from indextts.gpt.transformers_modeling_utils import PreTrainedModel
-from transformers.modeling_utils import SequenceSummary
+try:
+    # 尝试最旧的位置
+    from transformers.modeling_utils import SequenceSummary
+except ImportError:
+    try:
+        # 尝试下一个已知的位置
+        from transformers.models.gpt2.modeling_gpt2 import GPTSequenceSummary as SequenceSummary
+    except ImportError:
+        # 如果两者都失败，说明 transformers 版本很新，且我们不需要这个类。
+        # 我们可以安全地跳过，以允许节点加载。
+        SequenceSummary = None
+        print("    [DEBUG] 'SequenceSummary' not found. This is expected on newer transformers versions and is safe for IndexTTS2.")
+   
 
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask_for_sdpa, _prepare_4d_causal_attention_mask_for_sdpa
 from transformers.modeling_outputs import (
