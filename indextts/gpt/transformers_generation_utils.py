@@ -30,9 +30,16 @@ from transformers.cache_utils import (
     DynamicCache,
     EncoderDecoderCache,
     OffloadedCache,
-    QuantizedCacheConfig,
     StaticCache,
 )
+try:
+    # 在新版 transformers 中，QuantizedCacheConfig 已被移除。
+    # In newer transformers versions, QuantizedCacheConfig is removed.
+    from transformers.cache_utils import QuantizedCacheConfig
+except ImportError:
+    # 如果导入失败，我们可以安全地跳过，因为 IndexTTS2 并未使用它。
+    # If it fails to import, we can safely pass as IndexTTS2 does not use it.
+    pass
 from transformers.configuration_utils import PretrainedConfig
 from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 from transformers.integrations.fsdp import is_fsdp_managed_module
@@ -55,16 +62,29 @@ from transformers.generation.candidate_generator import (
     AssistedCandidateGeneratorDifferentTokenizers,
     CandidateGenerator,
     PromptLookupCandidateGenerator,
-    _crop_past_key_values,
     _prepare_attention_mask,
     _prepare_token_type_ids,
 )
 from transformers.generation.configuration_utils import (
-    NEED_SETUP_CACHE_CLASSES_MAPPING,
-    QUANT_BACKEND_CLASSES_MAPPING,
     GenerationConfig,
     GenerationMode,
 )
+try:
+    # 这个映射表在新版 transformers 中已被移除
+    # This mapping is removed in newer transformers versions.
+    from transformers.generation.configuration_utils import NEED_SETUP_CACHE_CLASSES_MAPPING
+except ImportError:
+    # 如果导入失败，安全地跳过，因为它对 IndexTTS2 非必需
+    # Safely pass if it fails, as it's not essential for IndexTTS2.
+    pass
+try:
+    # 这个映射表在新版 transformers 中已被移除
+    # This mapping is removed in newer transformers versions.
+    from transformers.generation.configuration_utils import QUANT_BACKEND_CLASSES_MAPPING
+except ImportError:
+    # 如果导入失败，安全地跳过，因为它对 IndexTTS2 非必需
+    # Safely pass if it fails, as it's not essential for IndexTTS2.
+    pass
 from transformers.generation.logits_process import (
     EncoderNoRepeatNGramLogitsProcessor,
     EncoderRepetitionPenaltyLogitsProcessor,
@@ -1002,12 +1022,7 @@ class GenerationMixin:
                     device=device,
                 )
             )
-        if generation_config.forced_decoder_ids is not None:
-            # TODO (sanchit): move this exception to GenerationConfig.validate() when TF & FLAX are aligned with PT
-            raise ValueError(
-                "You have explicitly specified `forced_decoder_ids`. Please remove the `forced_decoder_ids` argument "
-                "in favour of `input_ids` or `decoder_input_ids` respectively.",
-            )
+
         if generation_config.watermarking_config is not None:
             processors.append(
                 generation_config.watermarking_config.construct_processor(self.config.vocab_size, device)
@@ -4309,7 +4324,11 @@ class GenerationMixin:
 
             # 4.2. Discard past key values relative to unused assistant tokens
             new_cache_size = new_cur_len - 1
-            outputs.past_key_values = _crop_past_key_values(self, outputs.past_key_values, new_cache_size)
+            try:
+                from transformers.generation.candidate_generator import _crop_past_key_values
+                outputs.past_key_values = _crop_past_key_values(self, outputs.past_key_values, new_cache_size)
+            except:
+                outputs.past_key_values.crop(new_cache_size)
 
             # 5. Update the candidate generation strategy if needed
             candidate_generator.update_candidate_strategy(input_ids, new_logits, n_matches)
